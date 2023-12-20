@@ -33,19 +33,24 @@ def choose_dataset(path: str) -> str:
 
 
 def select_data(dataset_path: str, group_path: str, size: int, coordinate: list):
-    player_latitude = coordinate[0]
-    player_longitude = coordinate[1]
+    player_latitude, player_longitude = coordinate
     with h5py.File(dataset_path, 'r') as file:
         latitude = file['Geolocation']['Latitude'][:, 0]
         longitude = file['Geolocation']['Longitude'][0, :]
-        latitude_delta = abs(latitude[0] - latitude[1])
-        longitude_delta = abs(longitude[0] - longitude[1])
         data = file[group_path]
-    for i in latitude:
-        for j in longitude:
-            if abs(i - player_latitude) <= latitude_delta and (j - player_longitude) <= longitude_delta:
-                data = data[i - size // 200:i + size // 200 + 1, j - size // 200:j + size // 200 + 1]
-                return data
+
+        # Convert latitude and longitude to index
+        lat_index = np.argmin(np.abs(latitude - player_latitude))
+        lon_index = np.argmin(np.abs(longitude - player_longitude))
+
+        # Calculate the range to select
+        lat_start = max(0, lat_index - size // 200)
+        lat_end = min(lat_start + size // 100, latitude.shape[0])
+        lon_start = max(0, lon_index - size // 200)
+        lon_end = min(lon_start + size // 100, longitude.shape[0])
+
+        # Select the data
+        return data[lat_start:lat_end, lon_start:lon_end]
 
 
 @app.route('/<section>', methods=['GET'])
@@ -73,13 +78,23 @@ def interpolate_geodata(data_matrix, scale_factor: int, data_type: str) -> list:
     x = np.linspace(0, original_width - 1, original_width)
     y = np.linspace(0, original_height - 1, original_height)
 
+    X, Y = np.meshgrid(x, y)
+
+    X_flat = X.flatten()
+    Y_flat = Y.flatten()
+
     # New grid points for interpolation
     x_new = np.linspace(0, original_width - 1, original_width * scale_factor)
     y_new = np.linspace(0, original_height - 1, original_height * scale_factor)
 
+    X_new, Y_new = np.meshgrid(x_new, y_new)
+
+    X_new_flat = X_new.flatten()
+    Y_new_flat = Y_new.flatten()
+
     if data_type == 'DEM':
         # Perform Kriging interpolation for DEM data
-        OK = OrdinaryKriging(x, y, data_matrix.flatten(), variogram_model='linear', verbose=False,
+        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='linear', verbose=False,
                              enable_plotting=False)
         z_new, ss = OK.execute('grid', x_new, y_new)
         interpolated_matrix = z_new.data
