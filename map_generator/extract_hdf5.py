@@ -3,7 +3,7 @@ import numpy as np
 import os
 from flask import Flask
 from pykrige.ok import OrdinaryKriging
-from scipy.interpolate import interp2d
+from scipy.interpolate import griddata
 
 # read the coordinate and create a hdf5 file of a proper area with player in its center
 
@@ -53,8 +53,14 @@ def select_data(dataset_path: str, group_path: str, size: int, coordinate: list)
         return data[lat_start:lat_end, lon_start:lon_end]
 
 
+# A global dictionary to store processed data
+processed_data = {}
+
 @app.route('/<section>', methods=['GET'])
-def post_data(section: str, data):
+def post_data(section: str):
+    # Return the processed data for the requested section
+    section = section.replace('-', '/').replace('_', ' ')
+    data = processed_data.get(section, {})
     return data
 
 
@@ -80,29 +86,29 @@ def interpolate_geodata(data_matrix, scale_factor: int, data_type: str) -> list:
 
     X, Y = np.meshgrid(x, y)
 
+    # Flatten the grid points
+    points = np.vstack([X.ravel(), Y.ravel()]).T
+
     X_flat = X.flatten()
     Y_flat = Y.flatten()
 
     # New grid points for interpolation
-    x_new = np.linspace(0, original_width - 1, original_width * scale_factor)
-    y_new = np.linspace(0, original_height - 1, original_height * scale_factor)
+    x_new = np.linspace(0, original_width - 1/scale_factor, original_width * scale_factor)
+    y_new = np.linspace(0, original_height - 1/scale_factor, original_height * scale_factor)
 
     X_new, Y_new = np.meshgrid(x_new, y_new)
 
-    X_new_flat = X_new.flatten()
-    Y_new_flat = Y_new.flatten()
 
     if data_type == 'DEM':
         # Perform Kriging interpolation for DEM data
-        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='linear', verbose=False,
+        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='spherical', verbose=False,
                              enable_plotting=False)
         z_new, ss = OK.execute('grid', x_new, y_new)
         interpolated_matrix = z_new.data
 
     elif data_type == 'Hydro':
         # Perform Nearest Neighbor interpolation for Hydrological data
-        interp_func = interp2d(x, y, data_matrix, kind='nearest')
-        interpolated_matrix = interp_func(x_new, y_new)
+        interpolated_matrix = griddata(points, data_matrix.ravel(), (X_new, Y_new), method='nearest')
 
     else:
         raise ValueError("Invalid data type. Choose 'DEM' or 'Hydro'.")
@@ -111,10 +117,9 @@ def interpolate_geodata(data_matrix, scale_factor: int, data_type: str) -> list:
 
 
 if __name__ == "__main__":
-    # app.run(debug=True)
 
     # unity terrain data
-    map_size = 10000
+    map_size = 1000
 
     # temp var should be deleted later
     temp_coordinate = [-1.5575576, -66.49149]
@@ -124,5 +129,10 @@ if __name__ == "__main__":
     for name in ['ASTER GDEM/ASTGDEM', 'NDVI/Mean', 'Land Water Map/LWmap']:
         data = select_data(path, name, map_size, temp_coordinate)
         data_type = 'Hydro' if 'Water' in name else 'DEM'
-        terrain_data = interpolate_geodata(data_matrix=data, scale_factor=100, data_type=data_type)
-        post_data(name, terrain_data)
+        terrain_data = interpolate_geodata(data_matrix=data, scale_factor=10, data_type=data_type)
+
+        # Store processed data in the global dictionary
+        processed_data[name] = terrain_data
+
+        # Start the Flask app
+    app.run(debug=True, port=5002, use_reloader=False)
