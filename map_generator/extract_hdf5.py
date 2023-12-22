@@ -121,7 +121,7 @@ if __name__ == "__main__":
     # unity terrain data
     map_size = 1000
 
-    # temp var should be deleted later
+    # temp var should be deleted later, this coordinate should be uploaded from flutter
     temp_coordinate = [-1.5575576, -66.49149]
 
     work_dir = os.path.dirname(os.path.dirname(__file__))
