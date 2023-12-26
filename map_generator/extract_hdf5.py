@@ -101,7 +101,7 @@ def interpolate_geodata(data_matrix, scale_factor: int, data_type: str) -> list:
 
     if data_type == 'DEM':
         # Perform Kriging interpolation for DEM data
-        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='spherical', verbose=False,
+        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='hole-effect', verbose=False,
                              enable_plotting=False)
         z_new, ss = OK.execute('grid', x_new, y_new)
         interpolated_matrix = z_new.data
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     for name in ['ASTER GDEM/ASTGDEM', 'NDVI/Mean', 'Land Water Map/LWmap']:
         data = select_data(path, name, map_size, temp_coordinate)
         data_type = 'Hydro' if 'Water' in name else 'DEM'
-        terrain_data = interpolate_geodata(data_matrix=data, scale_factor=10, data_type=data_type)
+        terrain_data = interpolate_geodata(data_matrix=data, scale_factor=100, data_type=data_type)
 
         # Store processed data in the global dictionary
         processed_data[name] = terrain_data
