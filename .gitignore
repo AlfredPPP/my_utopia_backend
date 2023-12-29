@@ -1,2 +1,3 @@
 # .gitignore
-USGS_GeoData/
+USGS_GeoData_ori/
+USGS_GeoData_interp/

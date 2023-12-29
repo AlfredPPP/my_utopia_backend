@@ -125,7 +125,7 @@ if __name__ == "__main__":
     temp_coordinate = [-1.5575576, -66.49149]
 
     work_dir = os.path.dirname(os.path.dirname(__file__))
-    path = choose_dataset(os.path.join(work_dir, 'USGS_GeoData\\AG100.v003.-01.-067.0001.h5'))
+    path = choose_dataset(os.path.join(work_dir, 'USGS_GeoData_ori\\AG100.v003.-01.-067.0001.h5'))
     for name in ['ASTER GDEM/ASTGDEM', 'NDVI/Mean', 'Land Water Map/LWmap']:
         data = select_data(path, name, map_size, temp_coordinate)
         data_type = 'Hydro' if 'Water' in name else 'DEM'
