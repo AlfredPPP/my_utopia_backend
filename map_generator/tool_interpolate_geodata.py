@@ -1,73 +1,70 @@
 import os
 import h5py
 import numpy as np
-from pykrige.ok import OrdinaryKriging
+from datetime import datetime
+from scipy.ndimage import zoom
 from scipy.interpolate import griddata
 
 
-def interpolate_geodata(dataset, scale_factor: int) -> list:
-    """
-    Interpolates a geographic data matrix.
+def quadratic_interpolate(matrix, scale_factor):
+    # Use scipy's zoom function with order=2 for bicubic interpolation
+    return zoom(matrix, scale_factor, order=2)
 
-    :param dataset: HDF5 dataset.
-    :param scale_factor:  The factor by which to increase the resolution of the data.
-    :return: An array representing the interpolated data matrix.
-    """
+def bilinear_interpolate(matrix, scale_factor):
+    # Use scipy's zoom function with order=2 for bicubic interpolation
+    return zoom(matrix, scale_factor, order=1)
 
-    # Convert data_matrix to numpy array if it's not already
-    data_matrix = np.array(dataset)
-
-    data_type = dataset.name
-
-    # Get original dimensions
-    original_height, original_width = data_matrix.shape
-
-    # Generate grid points
-    x = np.linspace(0, original_width - 1, original_width)
-    y = np.linspace(0, original_height - 1, original_height)
-
-    X, Y = np.meshgrid(x, y)
-
-    # Flatten the grid points
-    points = np.vstack([X.ravel(), Y.ravel()]).T
-
-    X_flat = X.flatten()
-    Y_flat = Y.flatten()
-
-    # New grid points for interpolation
-    x_new = np.linspace(0, original_width - 1 / scale_factor, original_width * scale_factor)
-    y_new = np.linspace(0, original_height - 1 / scale_factor, original_height * scale_factor)
-
-    X_new, Y_new = np.meshgrid(x_new, y_new)
-
-    if 'LWmap' not in data_type:
-        # Perform Kriging interpolation for DEM data
-        OK = OrdinaryKriging(X_flat, Y_flat, data_matrix.flatten(), variogram_model='hole-effect', verbose=False,
-                             enable_plotting=False)
-        z_new, ss = OK.execute('grid', x_new, y_new)
-        interpolated_matrix = z_new.data
-    else:
-        # Perform Nearest Neighbor interpolation for Hydrological data
-        interpolated_matrix = griddata(points, data_matrix.ravel(), (X_new, Y_new), method='nearest')
-
-    return interpolated_matrix
+def nearest_neighbor_interpolate(matrix, scale_factor):
+    # Use scipy's zoom function with order=2 for bicubic interpolation
+    return zoom(matrix, scale_factor, order=0)
 
 
-def process_and_save_h5_file(file_path, output_folder):
-    # Directory paths
-    filename = os.path.basename(file_path)
-    output_file_path = os.path.join(output_folder, filename)
+def split_and_process_hdf5(filepath, output_folder):
+    # filename should look like 'AG100.v003.-01.-066'
+    filename = filepath[filepath.find('AG100'):-8]
 
-    with h5py.File(file_path, 'r') as file:
-        with h5py.File(output_file_path, 'w') as output_file:
-            for group_name in file:
-                group = file[group_name]
-                if group_name not in ('ASTER GDEM', 'Geolocation', 'Land Water Map', 'NDVI'):
-                    continue
-                for dataset_name in group:
-                    processed_data = interpolate_geodata(group[dataset_name], 100)
-                    output_file.create_group(group_name)
-                    output_file[group_name].create_dataset("dataset_name", data=processed_data)
+    # Open the HDF5 file
+    with h5py.File(filepath, 'r') as file:
+        # Read datasets
+        aster_gdem = file['ASTER GDEM']['ASTGDEM'][:]
+        geo_lat = file['Geolocation']['Latitude'][:]
+        geo_lon = file['Geolocation']['Longitude'][:]
+        land_water_map = file['Land Water Map']['LWmap'][:]
+        ndvi = file['NDVI']['Mean'][:]
+
+        # Split each dataset into 10x10 sub-datasets of size 100x100
+        for i in range(10):
+            for j in range(10):
+                # Calculate the start and end indices for slicing
+                start_i, end_i = i * 100, (i + 1) * 100
+                start_j, end_j = j * 100, (j + 1) * 100
+
+                # Extract sub-datasets
+                sub_aster_gdem = aster_gdem[start_i:end_i, start_j:end_j]
+                sub_geo_lat = geo_lat[start_i:end_i, start_j:end_j]
+                sub_geo_lon = geo_lon[start_i:end_i, start_j:end_j]
+                sub_land_water_map = land_water_map[start_i:end_i, start_j:end_j]
+                sub_ndvi = ndvi[start_i:end_i, start_j:end_j]
+
+                # Process each sub-dataset
+                sub_aster_gdem = quadratic_interpolate(sub_aster_gdem, 100)
+                sub_geo_lat = bilinear_interpolate(sub_geo_lat, 100)
+                sub_geo_lon = bilinear_interpolate(sub_geo_lon, 100)
+                sub_land_water_map = nearest_neighbor_interpolate(sub_land_water_map, 100)
+                sub_ndvi = quadratic_interpolate(sub_ndvi, 100)
+
+                # Create a new HDF5 file for each 100x100 sub-dataset
+                # sub_filename should look like 'AG100.v003.-01.01.-066.05.h5'
+                sub_filename = filename[:15] + f'{i}.' + filename[15:19] + f'.{j}.h5'
+                print(
+                    f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}---> start saving {sub_filename}...remaining {100 - i * 10 - j} tasks')
+                output_path = os.path.join(output_folder, sub_filename)
+                with h5py.File(output_path, 'w') as sub_file:
+                    sub_file.create_dataset('ASTER GDEM/ASTGDEM', data=sub_aster_gdem)
+                    sub_file.create_dataset('Geolocation/Latitude', data=sub_geo_lat)
+                    sub_file.create_dataset('Geolocation/Longitude', data=sub_geo_lon)
+                    sub_file.create_dataset('Land Water Map/LWmap', data=sub_land_water_map)
+                    sub_file.create_dataset('NDVI/Mean', data=sub_ndvi)
 
 
 if __name__ == "__main__":
@@ -75,5 +72,6 @@ if __name__ == "__main__":
     output_folder = '../USGS_GeoData_interp'
     for filename in os.listdir(input_folder):
         file_path = os.path.join(input_folder, filename)
-        process_and_save_h5_file(file_path, output_folder)
-    process_and_save_h5_file(file_path, output_folder)
+        print(f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}---> start processing {file_path}......')
+        split_and_process_hdf5(file_path, output_folder)
+        break
