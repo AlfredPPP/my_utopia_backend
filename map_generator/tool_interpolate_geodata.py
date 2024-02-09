@@ -33,11 +33,11 @@ def split_and_process_hdf5(filepath, output_folder):
         ndvi = file['NDVI']['Mean'][:]
 
         # Split each dataset into 10x10 sub-datasets of size 100x100
-        for i in range(10):
-            for j in range(10):
+        for i in range(100):
+            for j in range(100):
                 # Calculate the start and end indices for slicing
-                start_i, end_i = i * 100, (i + 1) * 100
-                start_j, end_j = j * 100, (j + 1) * 100
+                start_i, end_i = i * 10, (i + 1) * 10
+                start_j, end_j = j * 10, (j + 1) * 10
 
                 # Extract sub-datasets
                 sub_aster_gdem = aster_gdem[start_i:end_i, start_j:end_j]
@@ -57,7 +57,7 @@ def split_and_process_hdf5(filepath, output_folder):
                 # sub_filename should look like 'AG100.v003.-01.01.-066.05.h5'
                 sub_filename = filename[:15] + f'{i}.' + filename[15:19] + f'.{j}.h5'
                 print(
-                    f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}---> start saving {sub_filename}...remaining {100 - i * 10 - j} tasks')
+                    f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}---> start saving {sub_filename}...remaining {10000 - i * 100 - j} tasks')
                 output_path = os.path.join(output_folder, sub_filename)
                 with h5py.File(output_path, 'w') as sub_file:
                     sub_file.create_dataset('ASTER GDEM/ASTGDEM', data=sub_aster_gdem)

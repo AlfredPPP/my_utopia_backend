@@ -1,3 +1,4 @@
 # .gitignore
 USGS_GeoData_ori/
 USGS_GeoData_interp/
+USGS_GeoData_zipped/
