@@ -10,16 +10,24 @@ def quadratic_interpolate(matrix, scale_factor):
     # Use scipy's zoom function with order=2 for bicubic interpolation
     return zoom(matrix, scale_factor, order=2)
 
+
 def bilinear_interpolate(matrix, scale_factor):
     # Use scipy's zoom function with order=2 for bicubic interpolation
     return zoom(matrix, scale_factor, order=1)
+
 
 def nearest_neighbor_interpolate(matrix, scale_factor):
     # Use scipy's zoom function with order=2 for bicubic interpolation
     return zoom(matrix, scale_factor, order=0)
 
 
-def split_and_process_hdf5(filepath, output_folder):
+def split_and_process_hdf5(filepath: str, output_folder: str) -> None:
+    '''
+    Split the HDF5 file into 10000 10x10 sub-datasets and interpolate each sub-dataset
+    :param filepath: the hdf5 file path
+    :param output_folder: where to store the 10000 interpolated sub-datasets
+    :return: None
+    '''
     # filename should look like 'AG100.v003.-01.-066'
     filename = filepath[filepath.find('AG100'):-8]
 

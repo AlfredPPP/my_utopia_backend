@@ -4,6 +4,14 @@ import os
 
 
 def zip_data(target, target_type='file_folder', method='zlib', output_path=None):
+    '''
+    Compress the data using zlib or bz2
+    :param target: the file or folder to be compressed
+    :param target_type: 'file' or 'file_folder'
+    :param method: 'zlib' or 'bz2'
+    :param output_path: the path to save the compressed file
+    :return: the compressed data if target_type is 'file'
+    '''
     if target_type == 'file_folder':
         if not output_path:
             raise ValueError('Output path must be provided for file_folder target_type')
