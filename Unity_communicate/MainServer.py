@@ -12,7 +12,7 @@ from tornado.options import define, options
 
 # 假设其他服务组件已经被定义在相应的文件中
 # from MapService import MapService
-# from PlayerService import PlayerService
+from PlayerService import PlayerService
 # from GameLogicProcessor import GameLogicProcessor
 
 define("port", default=8888, help="run on the given port", type=int)
@@ -30,7 +30,7 @@ class Application(tornado.web.Application):
 
         # 初始化服务组件
         # self.map_service = MapService()
-        # self.player_service = PlayerService()
+        self.player_service = PlayerService()
         # self.game_logic_processor = GameLogicProcessor()
 
 
@@ -38,7 +38,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         print("WebSocket opened")
         # 这里可以添加玩家连接的逻辑，例如：
-        # application.player_service.on_player_connect(self)
+        self.application.player_service.on_player_connect(self)
 
     def on_message(self, message):
         print("Received message:", message)
@@ -48,7 +48,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def on_close(self):
         print("WebSocket closed")
         # 这里可以添加玩家断开连接的逻辑，例如：
-        # application.player_service.on_player_disconnect(self)
+        self.application.player_service.on_player_disconnect(self)
 
 
 def main():

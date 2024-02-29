@@ -1,0 +1,10 @@
+{
+  "player1": {
+    "nickname": "PlayerOne",
+    "position": [100, 200]
+  },
+  "player2": {
+    "nickname": "PlayerTwo",
+    "position": [150, 250]
+  }
+}

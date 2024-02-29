@@ -1,90 +1,57 @@
-import mysql.connector
-from pymongo import MongoClient
+import json
 
 class Player:
-    def __init__(self, player_id, websocket=None, position=(0, 0)):
+    def __init__(self, player_id, nickname, position):
         self.player_id = player_id
-        self.websocket = websocket  # WebSocket连接
+        self.nickname = nickname
         self.position = position
 
-
 class PlayerService:
-    def __init__(self, mysql_config, mongodb_uri):
-        # 初始化数据库连接
-        self.mysql_conn = mysql.connector.connect(**mysql_config)
-        self.mongodb_client = MongoClient(mongodb_uri)
-        self.mongodb_db = self.mongodb_client['game_db']  # MongoDB数据库名
-        self.players = {}  # 在线玩家字典
+    def __init__(self, data_file='playerdata.json'):
+        self.data_file = data_file
+        self.players = {}  # 使用字典来存储玩家对象，键为player_id
+        self.load_players()
 
-    def on_player_connect(self, player_id, websocket):
-        """
-        玩家连接时调用：
-        1. 从MySQL加载玩家基础信息（如位置）。
-        2. 从MongoDB加载玩家的游戏状态。
-        3. 初始化玩家对象并更新在线玩家列表。
-        """
-        # 假设已从数据库加载玩家数据
-        position = self.load_player_position_from_mysql(player_id)
-        player = Player(player_id, websocket, position)
-        self.players[player_id] = player
-        pass
+    def load_players(self):
+        """从JSON文件加载玩家数据到内存。"""
+        try:
+            with open(self.data_file, 'r') as file:
+                data = json.load(file)
+                for player_id, info in data.items():
+                    self.players[player_id] = Player(player_id, info['nickname'], info['position'])
+        except FileNotFoundError:
+            print(f"Warning: {self.data_file} not found. Starting with an empty player list.")
+
+    def save_players(self):
+        """将玩家数据保存到JSON文件。"""
+        data = {player_id: {'nickname': player.nickname, 'position': player.position} for player_id, player in self.players.items()}
+        with open(self.data_file, 'w') as file:
+            json.dump(data, file, indent=4)
+
+    def on_player_connect(self, player_id):
+        """玩家连接处理逻辑。如果玩家不存在，则创建新玩家。"""
+        if player_id not in self.players:
+            # 默认新玩家信息，可以根据需要进行调整
+            self.players[player_id] = Player(player_id, "NewPlayer", [0, 0])
+            self.save_players()
 
     def on_player_disconnect(self, player_id):
-        """
-        玩家断开连接时调用：
-        1. 可以选择此时将玩家的当前状态写回数据库。
-        2. 从在线玩家列表中移除玩家。
-        """
-        player = self.players.get(player_id)
-        if player:
-            self.save_player_to_mysql(player)
-            self.save_player_state_to_mongodb(player_id, {'some_state': 'value'})
-            del self.players[player_id]
-        pass
+        """玩家断开连接处理逻辑。"""
+        # 这里可以添加断开连接时需要执行的操作，例如保存数据
+        self.save_players()
 
     def update_player_position(self, player_id, new_position):
-        """
-        更新玩家位置：
-        1. 更新内存中玩家对象的位置。
-        2. 选择合适的时机将新位置写入MySQL数据库。
-        """
-        pass
+        """更新玩家位置，并定期保存玩家数据。"""
+        if player_id in self.players:
+            self.players[player_id].position = new_position
+            self.save_players()
+        else:
+            print(f"Player {player_id} not found for position update.")
 
-    def send_message_to_player(self, player_id, message):
-        """
-        向特定玩家发送消息。
-        """
-        player = self.players.get(player_id)
-        if player and player.websocket:
-            player.websocket.write_message(message)
-
-    def save_player_to_mysql(self, player):
-        """
-        将玩家信息保存到MySQL数据库。
-        """
-        pass
-
-    def load_player_from_mysql(self, player_id):
-        """
-        从MySQL数据库加载玩家信息。
-        """
-        pass
-
-    def save_player_state_to_mongodb(self, player_id, state):
-        """
-        将玩家游戏状态保存到MongoDB数据库。
-        """
-        pass
-
-    def load_player_state_from_mongodb(self, player_id):
-        """
-        从MongoDB数据库加载玩家游戏状态。
-        """
-        pass
-
-    def __del__(self):
-        """
-        确保在服务结束时关闭数据库连接。
-        """
-        self.mysql_conn.close()
-        self.mongodb_client.close()
+# 示例使用
+if __name__ == "__main__":
+    player_service = PlayerService()
+    player_service.on_player_connect("player1")
+    player_service.update_player_position("player1", [200, 300])
+    print(f"Player 1's new position: {player_service.players['player1'].position}")
+    player_service.on_player_disconnect("player1")
